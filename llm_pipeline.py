@@ -28,6 +28,12 @@ class ModelConfig:
     def __str__(self) -> str:
         return f"\tn_layers={self.n_layers}, n_head={self.n_head}, head_size={self.head_size}, rotary_dims={self.rotary_dims}"
 
+def post_processing(result, input_text): 
+    """post processing the model output"""
+    if result[:len(input_text)] == input_text:
+        ans = result[len(input_text):]
+    return ans
+
 last_output_text_map = {}
 
 def generate(args, text, tokenizer, compiled_model, enforce_input_tokens = None):
@@ -84,6 +90,7 @@ def generate(args, text, tokenizer, compiled_model, enforce_input_tokens = None)
         last_output_text_map[text_key] = output_text
         for i, out in enumerate(output_text):
             md5sum = hashlib.md5(out.encode('utf-8')).hexdigest()
+            out = post_processing(out, text)
             if len(out) > 160:
                 out = out[:80] + "..." + md5sum
             print(f"\t{i}. {[out]}")
@@ -104,6 +111,7 @@ if __name__ == "__main__":
     parser.add_argument("--bf16", action="store_true")
     parser.add_argument("-bs", "--beam-size", type=int, default=4)
     parser.add_argument("-r", "--repeat", type=int, default=1)
+    parser.add_argument("--prompts", type=str)
     # Parse the argument
     args = parser.parse_args()
 
@@ -149,22 +157,33 @@ if __name__ == "__main__":
     compiled_model.pipeline_config = ModelConfig(ov_model)
 
     prompts = {}
-    with open("prompts.json") as f:
+    prompts_fn = "prompts.json"
+    if args.prompts:
+        prompts_fn = args.prompts
+    with open(prompts_fn) as f:
         prompts = json.load(f)
 
+    enforce_input_tokens = False
+    if args.prompt:
+        # prompt from command line
+        prompts = [args.prompt]
+    elif args.prompts:
+        # load all prompts from a prompts file
+        prompts = prompts.values()
+    else:
+        # prompt, with prescribed prompt from json config
+        for plen in args.prompt_length:
+            if str(plen) in prompts:
+                prompts = [prompts[str(plen)]]
+                break
+            else:
+                prompts = ["Hi"]
+                # Prompt with length {plen} is not provided in prompt.json, will forge"
+                enforce_input_tokens = True
+
     print("Start test ...")
-    for round in range(args.repeat):
-        print(f"round {round}:")
-        if args.prompt:
-            # prompt from command line
-            text = args.prompt
-            generate(args, text, tokenizer, compiled_model)
-        else:
-            # prompt from json config
-            for plen in args.prompt_length:
-                if str(plen) in prompts:
-                    text = prompts[str(plen)]
-                    generate(args, [text], tokenizer, compiled_model)
-                else:
-                    # Prompt with length {plen} is not provided in prompt.json, will forge"
-                    generate(args, ["Hi"], tokenizer, compiled_model, enforce_input_tokens=plen)
+    for prompt in prompts:
+        for round in range(args.repeat):
+            print(f"round {round}:")
+            generate(args, prompt, tokenizer, compiled_model, enforce_input_tokens=enforce_input_tokens)
+
