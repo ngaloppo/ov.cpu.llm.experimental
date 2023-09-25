@@ -4,9 +4,8 @@ import time
 import hashlib
 import numpy as np
 import sys
-import jsonlines
+import csv
 from pathlib import Path
-from openvino.runtime import Core
 from openvino.runtime import Core, Model, Tensor, PartialShape, Type, serialize, opset_utils
 from openvino.runtime import opset10 as opset
 from openvino.preprocess import PrePostProcessor
@@ -208,6 +207,8 @@ if __name__ == "__main__":
             benchmark_data.append(result)
 
     if args.output_results:
-        with jsonlines.open(args.output_results, 'w') as f:
+        with open(args.output_results, 'w', newline='') as f:
+            writer = csv.DictWriter(f, fieldnames=benchmark_data[0].keys())
+            writer.writeheader()
             for data in benchmark_data:
-                f.write(data)
+                writer.writerow(data)

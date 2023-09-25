@@ -2,4 +2,3 @@ pybind11
 transformers
 torch
 torchvision
-jsonlines
