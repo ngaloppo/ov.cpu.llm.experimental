@@ -156,7 +156,6 @@ if __name__ == "__main__":
     compiled_model = core.compile_model(ov_model, "CPU", ov_config)
     compiled_model.pipeline_config = ModelConfig(ov_model)
 
-    prompts = {}
     prompts_fn = "prompts.json"
     if args.prompts:
         prompts_fn = args.prompts
@@ -172,10 +171,10 @@ if __name__ == "__main__":
         prompts = prompts.values()
     else:
         # prompt, with prescribed prompt from json config
+        prompts = []
         for plen in args.prompt_length:
             if str(plen) in prompts:
-                prompts = [prompts[str(plen)]]
-                break
+                prompts.append(prompts[str(plen)])
             else:
                 prompts = ["Hi"]
                 # Prompt with length {plen} is not provided in prompt.json, will forge"
